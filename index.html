@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나의 할 일 노트</title>
+<style>
+* { box-sizing:border-box }
+body { margin:0; min-height:100vh; color:#252147; background:radial-gradient(ellipse at 0 5%,#ffe7d7,transparent 48%),radial-gradient(ellipse at 100% 0,#d7e6ff,transparent 55%),#faf6ff; font:16px/1.6 "Malgun Gothic",sans-serif }
+main { max-width:860px; margin:auto; padding:36px 22px }
+header, .summary div, form, nav, li, li label { display:flex; align-items:center; gap:12px }
+header,.summary div { justify-content:space-between }
+h1 { margin:0; font-size:clamp(29px,5vw,43px); letter-spacing:-.07em }
+h1::before { content:'✓'; display:inline-grid; place-items:center; width:1.22em; height:1.22em; margin-right:.32em; background:#ffdb63; border-radius:30%; color:#39235d; transform:rotate(-9deg); vertical-align:4% }
+small { font-weight:bold; color:#50496a }
+section { margin-top:18px; padding:20px 25px; background:white; border-radius:22px; box-shadow:0 5px 22px #4830780c }
+.summary { position:relative; isolation:isolate; overflow:hidden; color:white; background:linear-gradient(115deg,#5135bf,#664ee3 65%,#4468d6) }
+.summary::before { content:''; position:absolute; z-index:-1; right:8%; top:-84px; border:18px solid #ffffff18; border-radius:50%; width:150px; height:150px; box-shadow:0 0 0 18px #ffffff0b }
+strong { font-size:36px; line-height:1.2 }
+progress { appearance:none; width:100%; height:12px; margin:13px 0 6px }
+progress::-webkit-progress-bar { background:#ffffff42; border-radius:8px }
+progress::-webkit-progress-value { background:#ffdf70; border-radius:8px }
+h2 { font-size:19px; margin:0 0 12px }
+button,input { font:inherit }
+button { cursor:pointer; border:0; border-radius:10px; background:#f2effa; color:#494164; padding:7px 14px }
+button:hover { filter:brightness(.96) }
+button:focus-visible,input:focus-visible { outline:3px solid #7861d6; outline-offset:2px }
+button[aria-pressed=true] { background:#e5defc; color:#4c279a; font-weight:bold }
+#entry { min-width:0; flex:1; padding:12px; border:1px solid #cfc9de; border-radius:10px }
+form button { padding:13px 22px; background:#345cdb; color:white; font-weight:bold }
+ul { list-style:none; padding:0; margin:14px 0 0 }
+li { margin-top:8px; padding:10px 13px; background:#f7f7ff; border-radius:12px }
+li:has(:checked) { background:#dcf7eb }
+li label { flex:1; overflow-wrap:anywhere; cursor:pointer }
+li button { background:transparent; color:#605974; font-size:14px }
+input[type=checkbox] { width:19px; height:19px; accent-color:#13825c; flex:none }
+input:checked + span { text-decoration:line-through; color:#416052 }
+#empty:empty,#notice:empty { display:none }
+#notice { color:#933418 }
+</style>
+<main>
+<header><h1>나의 할 일 노트</h1><small>김남현</small></header>
+<section class="summary"><div><b>목표 달성률</b><strong id="rate"></strong></div><progress id="bar" max="100" aria-label="목표 달성률"></progress><div id="count"></div></section>
+<section><h2><label for="entry">할 일 추가</label></h2><form><input id="entry" required placeholder="어떤 일을 해야 하나요?" autocomplete="off"><button>추가</button></form></section>
+<section><h2>할 일 목록</h2><nav aria-label="목록 필터"><button data-filter="all">전체</button><button data-filter="open">미완료</button><button data-filter="done">완료</button></nav><ul></ul><p id="empty"></p></section>
+<p id="notice" role="status"></p>
+</main>
+<script>
+const key = 'week2.todo.v1';
+const select = selector => document.querySelector(selector);
+let tasks = [];
+let filter = 'all';
+
+try {
+  tasks = JSON.parse(localStorage.getItem(key)) || [];
+} catch {
+  select('#notice').textContent = '저장된 목록을 읽을 수 없습니다.';
+}
+
+function save() {
+  try {
+    localStorage.setItem(key, JSON.stringify(tasks));
+  } catch {
+    select('#notice').textContent = '브라우저 저장이 제한되어 현재 창에서만 목록을 유지합니다.';
+  }
+  render();
+}
+
+function render() {
+  const completed = tasks.filter(task => task.done).length;
+  const rate = tasks.length ? Math.round(100 * completed / tasks.length) : 0;
+  select('#rate').textContent = rate + '%';
+  select('#bar').value = rate;
+  select('#count').textContent = '전체 ' + tasks.length + '개 · 완료 ' + completed + '개';
+  const list = select('ul');
+  list.replaceChildren();
+  for (const task of tasks) {
+    if ((filter === 'open' && task.done) || (filter === 'done' && !task.done)) continue;
+    const row = document.createElement('li');
+    const label = document.createElement('label');
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = task.done;
+    check.onchange = () => {
+      task.done = check.checked;
+      save();
+    };
+    const title = document.createElement('span');
+    title.textContent = task.title;
+    label.append(check, title);
+    const remove = document.createElement('button');
+    remove.textContent = '삭제';
+    remove.setAttribute('aria-label', task.title + ' 삭제');
+    remove.onclick = () => {
+      tasks = tasks.filter(item => item !== task);
+      save();
+    };
+    row.append(label, remove);
+    list.append(row);
+  }
+  select('#empty').textContent = list.children.length ? '' : '표시할 할 일이 없습니다.';
+  document.querySelectorAll('[data-filter]').forEach(button => {
+    button.setAttribute('aria-pressed', button.dataset.filter === filter);
+  });
+}
+
+select('form').onsubmit = event => {
+  event.preventDefault();
+  const entry = select('#entry');
+  const title = entry.value.trim();
+  if (!title) {
+    entry.value = '';
+    entry.reportValidity();
+    return;
+  }
+  tasks.push({title, done:false});
+  entry.value = '';
+  filter = 'all';
+  save();
+  entry.focus();
+};
+
+document.querySelectorAll('[data-filter]').forEach(button => {
+  button.onclick = () => {
+    filter = button.dataset.filter;
+    render();
+  };
+});
+render();
+</script>
+</html>
+
